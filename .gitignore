@@ -1,0 +1,7 @@
+.vscode
+__pycache__/
+Save
+data/*
+try*
+ckpt/*
+.ipynb_checkpoints
