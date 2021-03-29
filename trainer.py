@@ -19,8 +19,11 @@ import shutil
 
 from tqdm import tqdm
 from utils import accuracy, AverageMeter
-from resnet import resnet32
-from tensorboard_logger import configure, log_value
+# from resnet import resnet32
+from models.renset import resnet18
+# from tensorboard_logger import configure, writer.add_scalar
+from torch.utils.tensorboard import SummaryWriter
+
 
 class Trainer(object):
     """
@@ -30,6 +33,7 @@ class Trainer(object):
     All hyperparameters are provided by the user in the
     config file.
     """
+
     def __init__(self, config, data_loader):
         """
         Construct a new Trainer instance.
@@ -64,7 +68,7 @@ class Trainer(object):
         self.use_gpu = config.use_gpu
         self.best = config.best
         self.ckpt_dir = config.ckpt_dir
-        self.logs_dir = config.logs_dir      
+        self.logs_dir = config.logs_dir
         self.counter = 0
         self.lr_patience = config.lr_patience
         self.train_patience = config.train_patience
@@ -72,7 +76,7 @@ class Trainer(object):
         self.resume = config.resume
         self.print_freq = config.print_freq
         self.model_name = config.save_name
-        
+
         self.model_num = config.model_num
         self.models = []
         self.optimizers = []
@@ -88,29 +92,31 @@ class Trainer(object):
             print('[*] Saving tensorboard logs to {}'.format(tensorboard_dir))
             if not os.path.exists(tensorboard_dir):
                 os.makedirs(tensorboard_dir)
-            configure(tensorboard_dir)
+            self.writer = SummaryWriter(
+                log_dir=tensorboard_dir, flush_secs=2)
 
         for i in range(self.model_num):
             # build models
-            model = resnet32()
+            model = resnet18(num_classes=self.num_classes)
             if self.use_gpu:
                 model.cuda()
-            
+
             self.models.append(model)
 
             # initialize optimizer and scheduler
             optimizer = optim.SGD(model.parameters(), lr=self.lr, momentum=self.momentum,
                                   weight_decay=self.weight_decay, nesterov=self.nesterov)
-            
+
             self.optimizers.append(optimizer)
-            
+
             # set learning rate decay
-            scheduler = optim.lr_scheduler.StepLR(self.optimizers[i], step_size=60, gamma=self.gamma, last_epoch=-1)
+            scheduler = optim.lr_scheduler.StepLR(
+                self.optimizers[i], step_size=60, gamma=self.gamma, last_epoch=-1)
             self.schedulers.append(scheduler)
 
         print('[*] Number of parameters of one model: {:,}'.format(
             sum([p.data.nelement() for p in self.models[0].parameters()])))
-    
+
     def train(self):
         """
         Train the model on the training set.
@@ -129,9 +135,6 @@ class Trainer(object):
 
         for epoch in range(self.start_epoch, self.epochs):
 
-            for scheduler in self.schedulers:
-                scheduler.step(epoch)
-            
             print(
                 '\nEpoch: {}/{} - LR: {:.6f}'.format(
                     epoch+1, self.epochs, self.optimizers[0].param_groups[0]['lr'],)
@@ -140,33 +143,38 @@ class Trainer(object):
             # train for 1 epoch
             train_losses, train_accs = self.train_one_epoch(epoch)
 
+            for scheduler in self.schedulers:
+                scheduler.step(epoch)
+
             # evaluate on validation set
             valid_losses, valid_accs = self.validate(epoch)
 
             for i in range(self.model_num):
-                is_best = valid_accs[i].avg> self.best_valid_accs[i]
+                is_best = valid_accs[i].avg > self.best_valid_accs[i]
                 msg1 = "model_{:d}: train loss: {:.3f} - train acc: {:.3f} "
                 msg2 = "- val loss: {:.3f} - val acc: {:.3f}"
                 if is_best:
                     #self.counter = 0
                     msg2 += " [*]"
                 msg = msg1 + msg2
-                print(msg.format(i+1, train_losses[i].avg, train_accs[i].avg, valid_losses[i].avg, valid_accs[i].avg))
+                print(msg.format(
+                    i+1, train_losses[i].avg, train_accs[i].avg, valid_losses[i].avg, valid_accs[i].avg))
 
             # check for improvement
-            #if not is_best:
+            # if not is_best:
                 #self.counter += 1
-            #if self.counter > self.train_patience:
+            # if self.counter > self.train_patience:
                 #print("[!] No improvement in a while, stopping training.")
-                #return
-                self.best_valid_accs[i] = max(valid_accs[i].avg, self.best_valid_accs[i])
+                # return
+                self.best_valid_accs[i] = max(
+                    valid_accs[i].avg, self.best_valid_accs[i])
                 self.save_checkpoint(i,
-                    {'epoch': epoch + 1,
-                    'model_state': self.models[i].state_dict(),
-                    'optim_state': self.optimizers[i].state_dict(),
-                    'best_valid_acc': self.best_valid_accs[i],
-                    }, is_best
-                )
+                                     {'epoch': epoch + 1,
+                                      'model_state': self.models[i].state_dict(),
+                                      'optim_state': self.optimizers[i].state_dict(),
+                                      'best_valid_acc': self.best_valid_accs[i],
+                                      }, is_best
+                                     )
 
     def train_one_epoch(self, epoch):
         """
@@ -186,32 +194,30 @@ class Trainer(object):
             losses.append(AverageMeter())
             accs.append(AverageMeter())
 
-        
         tic = time.time()
         with tqdm(total=self.num_train) as pbar:
             for i, (images, labels) in enumerate(self.train_loader):
                 if self.use_gpu:
                     images, labels = images.cuda(), labels.cuda()
                 images, labels = Variable(images), Variable(labels)
-                
-                #forward pass
-                outputs=[]
+
+                # forward pass
+                outputs = []
                 for model in self.models:
                     outputs.append(model(images))
                 for i in range(self.model_num):
                     ce_loss = self.loss_ce(outputs[i], labels)
                     kl_loss = 0
                     for j in range(self.model_num):
-                        if i!=j:
-                            kl_loss += self.loss_kl(F.log_softmax(outputs[i], dim = 1), 
+                        if i != j:
+                            kl_loss += self.loss_kl(F.log_softmax(outputs[i], dim=1),
                                                     F.softmax(Variable(outputs[j]), dim=1))
                     loss = ce_loss + kl_loss / (self.model_num - 1)
-                    
+
                     # measure accuracy and record loss
                     prec = accuracy(outputs[i].data, labels.data, topk=(1,))[0]
                     losses[i].update(loss.item(), images.size()[0])
                     accs[i].update(prec.item(), images.size()[0])
-                
 
                     # compute gradients and update SGD
                     self.optimizers[i].zero_grad()
@@ -236,9 +242,11 @@ class Trainer(object):
                 if self.use_tensorboard:
                     iteration = epoch*len(self.train_loader) + i
                     for i in range(self.model_num):
-                        log_value('train_loss_%d' % (i+1), losses[i].avg, iteration)
-                        log_value('train_acc_%d' % (i+1), accs[i].avg, iteration)
-            
+                        self.writer.add_scalar('train_loss_%d' %
+                                               (i+1), losses[i].avg, iteration)
+                        self.writer.add_scalar('train_acc_%d' %
+                                               (i+1), accs[i].avg, iteration)
+
             return losses, accs
 
     def validate(self, epoch):
@@ -257,16 +265,16 @@ class Trainer(object):
                 images, labels = images.cuda(), labels.cuda()
             images, labels = Variable(images), Variable(labels)
 
-            #forward pass
-            outputs=[]
+            # forward pass
+            outputs = []
             for model in self.models:
                 outputs.append(model(images))
             for i in range(self.model_num):
                 ce_loss = self.loss_ce(outputs[i], labels)
                 kl_loss = 0
                 for j in range(self.model_num):
-                    if i!=j:
-                        kl_loss += self.loss_kl(F.log_softmax(outputs[i], dim = 1),
+                    if i != j:
+                        kl_loss += self.loss_kl(F.log_softmax(outputs[i], dim=1),
                                                 F.softmax(Variable(outputs[j]), dim=1))
                 loss = ce_loss + kl_loss / (self.model_num - 1)
 
@@ -278,8 +286,10 @@ class Trainer(object):
         # log to tensorboard for every epoch
         if self.use_tensorboard:
             for i in range(self.model_num):
-                log_value('valid_loss_%d' % (i+1), losses[i].avg, epoch+1)
-                log_value('valid_acc_%d' % (i+1), accs[i].avg, epoch+1)
+                self.writer.add_scalar('valid_loss_%d' %
+                                       (i+1), losses[i].avg, epoch+1)
+                self.writer.add_scalar('valid_acc_%d' %
+                                       (i+1), accs[i].avg, epoch+1)
 
         return losses, accs
 
@@ -292,7 +302,7 @@ class Trainer(object):
         losses = AverageMeter()
         top1 = AverageMeter()
         top5 = AverageMeter()
-        
+
         # load the best checkpoint
         self.load_checkpoint(best=self.best)
         self.model.eval()
@@ -300,8 +310,8 @@ class Trainer(object):
             if self.use_gpu:
                 images, labels = images.cuda(), labels.cuda()
             images, labels = Variable(images), Variable(labels)
-        
-            #forward pass
+
+            # forward pass
             outputs = self.model(images)
             loss = self.loss_fn(outputs, labels)
 

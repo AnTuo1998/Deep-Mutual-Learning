@@ -11,6 +11,7 @@ import torch
 from torchvision import datasets
 from torchvision import transforms
 
+
 def get_train_loader(data_dir,
                      batch_size,
                      random_seed,
@@ -39,16 +40,17 @@ def get_train_loader(data_dir,
     # define transforms
     trans = transforms.Compose([
         transforms.RandomCrop(32, padding=4),  # 将图像转化为32 * 32
-        transforms.RandomHorizontalFlip(), # 随机水平翻转
+        transforms.RandomHorizontalFlip(),  # 随机水平翻转
         transforms.RandomRotation(degrees=15),  # 随机旋转
         transforms.ToTensor(),  # 将numpy数据类型转化为Tensor
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])  # 归一化
+        transforms.Normalize([0.485, 0.456, 0.406], [
+                             0.229, 0.224, 0.225])  # 归一化
     ])
 
     # load dataset
     dataset = datasets.CIFAR100(root=data_dir,
                                 transform=trans,
-                                download=False,
+                                download=True,
                                 train=True)
     if shuffle:
         np.random.seed(random_seed)
@@ -58,7 +60,6 @@ def get_train_loader(data_dir,
     )
 
     return train_loader
-
 
 
 def get_test_loader(data_dir,
@@ -85,13 +86,14 @@ def get_test_loader(data_dir,
     """
     # define transforms
     trans = transforms.Compose([
-    transforms.ToTensor(),  # 将numpy数据类型转化为Tensor
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])  # 归一化
+        transforms.ToTensor(),  # 将numpy数据类型转化为Tensor
+        transforms.Normalize([0.485, 0.456, 0.406], [
+                             0.229, 0.224, 0.225])  # 归一化
     ])
 
     # load dataset
     dataset = datasets.CIFAR100(
-        data_dir, train=False, download=False, transform=trans
+        data_dir, train=False, download=True, transform=trans
     )
 
     data_loader = torch.utils.data.DataLoader(

@@ -20,16 +20,17 @@ def add_argument_group(name):
     arg_lists.append(arg)
     return arg
 
+
 # data params
 data_arg = add_argument_group('Data Params')
 data_arg.add_argument('--num_classes', type=int, default=100,
                       help='Number of classes to classify')
-data_arg.add_argument('--batch_size', type=int, default=256,
+data_arg.add_argument('--batch_size', type=int, default=128,
                       help='# of images in each batch of data')
 data_arg.add_argument('--num_workers', type=int, default=4,
                       help='# of subprocesses to use for data loading')
 data_arg.add_argument('--pin_memory', type=str2bool, default=True,
-                      help='whether to copy tensors into CUDA pinned memory')                      
+                      help='whether to copy tensors into CUDA pinned memory')
 data_arg.add_argument('--shuffle', type=str2bool, default=True,
                       help='Whether to shuffle the train indices')
 
@@ -52,7 +53,7 @@ train_arg.add_argument('--lr_patience', type=int, default=10,
                        help='Number of epochs to wait before reducing lr')
 train_arg.add_argument('--train_patience', type=int, default=100,
                        help='Number of epochs to wait before stopping train')
-train_arg.add_argument('--gamma', type=float, default=0.1,
+train_arg.add_argument('--gamma', type=float, default=0.2,
                        help='value of learning rate decay')
 
 # other params
@@ -73,12 +74,13 @@ misc_arg.add_argument('--use_tensorboard', type=str2bool, default=True,
                       help='Whether to use tensorboard for visualization')
 misc_arg.add_argument('--resume', type=str2bool, default=False,
                       help='Whether to resume training from checkpoint')
-misc_arg.add_argument('--print_freq', type=int, default=10,
+misc_arg.add_argument('--print_freq', type=int, default=100,
                       help='How frequently to print training details')
 misc_arg.add_argument('--save_name', type=str, default='model',
                       help='Name of the model to save as')
-misc_arg.add_argument('--model_num', type=int, default=2,
+misc_arg.add_argument('--model_num', type=int, default=3,
                       help='Number of models to train for DML')
+
 
 def get_config():
     config, unparsed = parser.parse_known_args()
