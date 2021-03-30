@@ -21,6 +21,7 @@ from tqdm import tqdm
 from utils import accuracy, AverageMeter
 # from resnet import resnet32
 from models.renset import resnet18
+from models.shufflenet import shufflenet_v2_x0_5
 # from tensorboard_logger import configure, writer.add_scalar
 from torch.utils.tensorboard import SummaryWriter
 
@@ -97,7 +98,7 @@ class Trainer(object):
 
         for i in range(self.model_num):
             # build models
-            model = resnet18(num_classes=self.num_classes)
+            model = shufflenet_v2_x0_5(num_classes=self.num_classes)
             if self.use_gpu:
                 model.cuda()
 
@@ -144,7 +145,7 @@ class Trainer(object):
             train_losses, train_accs = self.train_one_epoch(epoch)
 
             for scheduler in self.schedulers:
-                scheduler.step(epoch)
+                scheduler.step()
 
             # evaluate on validation set
             valid_losses, valid_accs = self.validate(epoch)
@@ -175,6 +176,8 @@ class Trainer(object):
                                       'best_valid_acc': self.best_valid_accs[i],
                                       }, is_best
                                      )
+
+        print(self.best_valid_accs)
 
     def train_one_epoch(self, epoch):
         """

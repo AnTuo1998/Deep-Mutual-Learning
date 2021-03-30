@@ -78,7 +78,7 @@ misc_arg.add_argument('--print_freq', type=int, default=100,
                       help='How frequently to print training details')
 misc_arg.add_argument('--save_name', type=str, default='model',
                       help='Name of the model to save as')
-misc_arg.add_argument('--model_num', type=int, default=3,
+misc_arg.add_argument('--model_num', type=int, default=2,
                       help='Number of models to train for DML')
 
 
